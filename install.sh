@@ -1,36 +1,157 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "==> Installing MikoCode"
+if [[ -t 1 ]] && command -v tput >/dev/null 2>&1; then
+  BOLD="$(tput bold)"
+  DIM="$(tput dim)"
+  RED="$(tput setaf 1)"
+  GREEN="$(tput setaf 2)"
+  BLUE="$(tput setaf 4)"
+  RESET="$(tput sgr0)"
+else
+  BOLD=""
+  DIM=""
+  RED=""
+  GREEN=""
+  BLUE=""
+  RESET=""
+fi
+
+TOTAL_STEPS=11
+CURRENT_STEP=0
+HAVE_GUM=0
+
+if command -v gum >/dev/null 2>&1 && [[ -t 0 ]] && [[ -t 1 ]]; then
+  HAVE_GUM=1
+fi
+
+title() {
+  if [[ "$HAVE_GUM" == "1" ]]; then
+    gum style --bold --foreground 212 "$1"
+  else
+    printf "${BOLD}%s${RESET}\n" "$1"
+  fi
+}
+
+subtitle() {
+  if [[ "$HAVE_GUM" == "1" ]]; then
+    gum style --faint "$1"
+  else
+    printf "${DIM}%s${RESET}\n" "$1"
+  fi
+}
+
+step() {
+  CURRENT_STEP=$((CURRENT_STEP + 1))
+  if [[ "$HAVE_GUM" == "1" ]]; then
+    gum style --foreground 39 --bold "[$CURRENT_STEP/$TOTAL_STEPS] $1"
+  else
+    printf "\n${BLUE}${BOLD}[%d/%d]${RESET} %s\n" "$CURRENT_STEP" "$TOTAL_STEPS" "$1"
+  fi
+}
+
+ok() {
+  printf "${GREEN}  -> %s${RESET}\n" "$1"
+}
+
+warn() {
+  printf "${RED}  -> %s${RESET}\n" "$1"
+}
+
+run_with_spinner() {
+  local label="$1"
+  shift
+
+  if [[ "$HAVE_GUM" == "1" ]]; then
+    gum spin --spinner dot --title "$label" -- "$@"
+  else
+    "$@"
+  fi
+}
+
+confirm_continue() {
+  local prompt="$1"
+
+  if [[ "$HAVE_GUM" == "1" ]]; then
+    gum confirm "$prompt"
+    return
+  fi
+
+  if [[ -t 0 ]]; then
+    printf "%s [Y/n] " "$prompt"
+    read -r answer
+    [[ -z "${answer:-}" || "$answer" =~ ^[Yy]$ ]]
+    return
+  fi
+
+  return 0
+}
+
+trap 'warn "Installer failed at line $LINENO."' ERR
+
+TOTAL_STEPS=13
+title "MikoCode installer"
+subtitle "Guided setup for tmux + nvim + mikocode launcher"
+
+step "Checking platform"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
-  echo "This installer is Mac-only for now."
+  warn "This installer is Mac-only for now."
   exit 1
 fi
+ok "macOS detected"
 
+step "Checking Homebrew"
 if ! command -v brew >/dev/null 2>&1; then
-  echo "Homebrew missing. Install it first:"
-  echo "https://brew.sh"
+  warn "Homebrew missing. Install it first: https://brew.sh"
   exit 1
 fi
+ok "Homebrew detected"
 
 BREW_PREFIX="$(brew --prefix)"
 export PATH="$HOME/.local/bin:$HOME/.bun/bin:$HOME/.npm-global/bin:$HOME/.pnpm/bin:${PNPM_HOME:-}:$HOME/.cargo/bin:$HOME/.local/share/mise/shims:$BREW_PREFIX/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 
+step "Installing Charm gum"
+if command -v gum >/dev/null 2>&1; then
+  ok "gum already installed"
+else
+  if brew install gum; then
+    ok "gum installed"
+  else
+    warn "Could not install gum (continuing with standard output)"
+  fi
+fi
+
+if command -v gum >/dev/null 2>&1 && [[ -t 0 ]] && [[ -t 1 ]]; then
+  HAVE_GUM=1
+fi
+
+step "Preparing directories"
 mkdir -p "$HOME/.local/bin" "$HOME/.config/nvim"
+ok "Workspace directories are ready"
 
-echo "==> Installing packages"
-brew install tmux neovim git ripgrep fd fzf eza bat zoxide chafa git-delta lazygit || true
-brew install --cask font-meslo-lg-nerd-font font-hack-nerd-font || true
+step "Installing packages"
+if run_with_spinner "Installing core packages" brew install tmux neovim git ripgrep fd fzf eza bat zoxide chafa git-delta lazygit; then
+  ok "Core packages installed"
+else
+  warn "Core package install returned errors (continuing)"
+fi
 
-echo "==> Fixing bad cat alias if present"
+if run_with_spinner "Installing Nerd Fonts" brew install --cask font-meslo-lg-nerd-font font-hack-nerd-font; then
+  ok "Nerd fonts installed"
+else
+  warn "Font install returned errors (continuing)"
+fi
+
+step "Cleaning shell aliases"
 for f in "$HOME/.zshrc" "$HOME/.bashrc"; do
   [[ -f "$f" ]] || continue
   perl -i.bak -ne 'print unless /^alias cat=/' "$f"
 done
 unalias cat 2>/dev/null || true
+ok "Removed conflicting cat alias entries"
 
-echo "==> Ensuring PATH"
+step "Ensuring PATH setup"
 if ! grep -q 'MikoCode PATH' "$HOME/.zshrc" 2>/dev/null; then
   command cat >> "$HOME/.zshrc" <<'EOFZSH'
 
@@ -38,19 +159,34 @@ if ! grep -q 'MikoCode PATH' "$HOME/.zshrc" 2>/dev/null; then
 export PATH="$HOME/.local/bin:$HOME/.bun/bin:$HOME/.npm-global/bin:$HOME/.pnpm/bin:${PNPM_HOME:-}:$HOME/.cargo/bin:$HOME/.local/share/mise/shims:/opt/homebrew/bin:/usr/local/bin:$PATH"
 EOFZSH
 fi
+ok "PATH block verified in ~/.zshrc"
 
+step "Confirming config overwrite"
+if [[ -f "$HOME/.tmux.conf" || -f "$HOME/.config/nvim/init.lua" ]]; then
+  if ! confirm_continue "Existing tmux/nvim configs found. Continue and create backups?"; then
+    warn "Install cancelled by user"
+    exit 1
+  fi
+  ok "User confirmed config updates"
+else
+  ok "No existing tmux/nvim config files detected"
+fi
+
+step "Backing up existing configs"
 TS="$(date +%Y%m%d-%H%M%S)"
 [[ -f "$HOME/.tmux.conf" ]] && cp "$HOME/.tmux.conf" "$HOME/.tmux.conf.bak.$TS"
 [[ -f "$HOME/.config/nvim/init.lua" ]] && cp "$HOME/.config/nvim/init.lua" "$HOME/.config/nvim/init.lua.bak.$TS"
+ok "Backups created where needed"
 
-echo "==> Writing tmux config"
+step "Writing tmux configuration"
 command cat > "$HOME/.tmux.conf" <<'EOFTMUX'
-set -g default-terminal "tmux-256color"
-set -ag terminal-overrides ",xterm-256color:RGB"
-set -g set-clipboard on
-
-# Enable tmux mouse (pane selection, resize, scroll)
+# Keep mouse support always on
 set -g mouse on
+set -g focus-events on
+
+set -g default-terminal "tmux-256color"
+set -ag terminal-overrides ",xterm-256color:Tc"
+set -g set-clipboard on
 
 unbind C-b
 set -g prefix C-a
@@ -83,8 +219,9 @@ set -g window-status-current-format " #[bg=colour99,fg=white,bold] #I #W #[defau
 set -g status-left "#[fg=colour99,bold] MikoCode #[fg=colour240]│ "
 set -g status-right "#[fg=colour245]%H:%M "
 EOFTMUX
+ok "tmux config written (mouse enabled)"
 
-echo "==> Writing nvim config"
+step "Writing Neovim configuration"
 command cat > "$HOME/.config/nvim/init.lua" <<'EOFNVIM'
 vim.g.mapleader = " "
 vim.g.loaded_netrw = 1
@@ -485,11 +622,16 @@ vim.keymap.set("n", "<leader>v", "<cmd>DiffviewOpen<CR>", { desc = "Diffview" })
 vim.keymap.set("n", "<leader>i", "<cmd>Img<CR>", { desc = "Image preview" })
 vim.keymap.set("n", "<leader>cv", "<cmd>Codeview<CR>", { desc = "Code/git view" })
 EOFNVIM
+ok "Neovim config written"
 
-echo "==> Installing nvim plugins"
-nvim --headless "+Lazy! sync" +qa || true
+step "Installing Neovim plugins"
+if run_with_spinner "Syncing Neovim plugins" nvim --headless "+Lazy! sync" +qa; then
+  ok "Plugin sync completed"
+else
+  warn "Plugin sync returned errors (continuing)"
+fi
 
-echo "==> Writing mikocode command"
+step "Writing mikocode launcher"
 command cat > "$HOME/.local/bin/mikocode" <<'EOFCMD'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -692,17 +834,24 @@ EOFCMD
 
 chmod +x "$HOME/.local/bin/mikocode"
 ln -sf "$HOME/.local/bin/mikocode" "$BREW_PREFIX/bin/mikocode" 2>/dev/null || true
-tmux source-file "$HOME/.tmux.conf" 2>/dev/null || true
+ok "Launcher installed at ~/.local/bin/mikocode"
 
-echo
-echo "DONE."
-echo
-echo "Run:"
-echo "  source ~/.zshrc"
-echo "  tmux kill-server"
-echo "  mikocode ."
-echo
-echo "Debug:"
-echo "  mikocode --doctor"
-echo
-echo "For icons, set terminal font to MesloLGS NF or Hack Nerd Font."
+step "Applying tmux changes"
+tmux set-option -g mouse on 2>/dev/null || true
+tmux set-option -g focus-events on 2>/dev/null || true
+tmux source-file "$HOME/.tmux.conf" 2>/dev/null || true
+ok "tmux updated for current server"
+
+printf "\n${GREEN}${BOLD}Install complete.${RESET}\n"
+printf "\nNext steps:\n"
+printf "  1) source ~/.zshrc\n"
+printf "  2) tmux kill-server\n"
+printf "  3) mikocode .\n"
+printf "\nDiagnostics:\n"
+printf "  mikocode --doctor\n"
+printf "\nFont tip: set terminal font to MesloLGS NF or Hack Nerd Font.\n"
+
+if [[ "$HAVE_GUM" == "1" ]]; then
+  gum style --bold --foreground 42 "Install complete."
+  gum style --faint "Run: source ~/.zshrc && tmux kill-server && mikocode ."
+fi

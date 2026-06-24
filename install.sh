@@ -49,8 +49,8 @@ set -g default-terminal "tmux-256color"
 set -ag terminal-overrides ",xterm-256color:RGB"
 set -g set-clipboard on
 
-# Normal terminal select + Cmd+C/Cmd+V
-set -g mouse off
+# Enable tmux mouse (pane selection, resize, scroll)
+set -g mouse on
 
 unbind C-b
 set -g prefix C-a
@@ -202,6 +202,27 @@ require("lazy").setup({
       vim.keymap.set("n", "<leader>e", "<cmd>NvimTreeToggle<CR>", { desc = "Sidebar" })
       vim.keymap.set("n", "<leader>f", "<cmd>NvimTreeFindFile<CR>", { desc = "Find current file" })
 
+      local function open_first_file_in_cwd()
+        local loop = vim.uv or vim.loop
+        if not loop then return end
+
+        local cwd = loop.cwd()
+        if not cwd or cwd == "" then return end
+
+        local files = vim.fs.find(function(name, path)
+          local full = path .. "/" .. name
+          return vim.fn.isdirectory(full) == 0
+        end, {
+          path = cwd,
+          type = "file",
+          limit = 1,
+        })
+
+        if files and files[1] then
+          vim.cmd.edit(vim.fn.fnameescape(files[1]))
+        end
+      end
+
       vim.api.nvim_create_autocmd("VimEnter", {
         callback = function(data)
           if vim.env.MIKOCODE_START_MODE == "diff" then return end
@@ -214,6 +235,11 @@ require("lazy").setup({
 
           if data.file ~= "" and not is_dir then
             api.tree.find_file({ open = true, focus = false })
+          else
+            vim.schedule(function()
+              open_first_file_in_cwd()
+              api.tree.find_file({ open = true, focus = false })
+            end)
           end
         end,
       })
@@ -483,7 +509,7 @@ Env:
   MIKOCODE_AI="opencode"
   MIKOCODE_EDITOR="nvim"
   MIKOCODE_FOCUS="editor"      # editor | shell | ai
-  MIKOCODE_START_MODE="diff"   # diff | normal
+  MIKOCODE_START_MODE="normal" # diff | normal
 HELP
 }
 
@@ -544,7 +570,7 @@ SESSION="${MIKOCODE_SESSION:-mikocode-${PROJECT}-${HASH}}"
 EDITOR_CMD="${MIKOCODE_EDITOR:-nvim}"
 AI_CMD="${MIKOCODE_AI:-opencode}"
 FOCUS="${MIKOCODE_FOCUS:-editor}"
-START_MODE="${MIKOCODE_START_MODE:-diff}"
+START_MODE="${MIKOCODE_START_MODE:-normal}"
 
 [[ "$KILL" == "1" ]] && tmux kill-session -t "$SESSION" 2>/dev/null || true
 

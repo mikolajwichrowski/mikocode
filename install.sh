@@ -193,11 +193,18 @@ set -g prefix C-a
 bind C-a send-prefix
 
 bind r source-file ~/.tmux.conf \; display-message "tmux reloaded"
+bind c new-window -c "#{pane_current_path}"
+bind x confirm-before -p "Close workspace #W? (y/n)" kill-window
+bind-key -n C-t new-window -c "#{pane_current_path}"
+set -g renumber-windows on
+set -g automatic-rename off
 
 setw -g mode-keys vi
 bind-key -T copy-mode-vi v send -X begin-selection
 bind-key -T copy-mode-vi y send -X copy-pipe-and-cancel "pbcopy"
 bind-key -T copy-mode-vi Enter send -X copy-pipe-and-cancel "pbcopy"
+bind-key -T copy-mode-vi MouseDragEnd1Pane send -X copy-pipe-and-cancel "pbcopy"
+bind-key -T copy-mode MouseDragEnd1Pane send -X copy-pipe-and-cancel "pbcopy"
 
 bind | split-window -h -c "#{pane_current_path}"
 bind - split-window -v -c "#{pane_current_path}"
@@ -210,14 +217,16 @@ bind k select-pane -U
 bind l select-pane -R
 
 set -sg escape-time 10
+set -g pane-border-style fg=colour240
+set -g pane-active-border-style fg=colour99
 
 set -g status on
 set -g status-position bottom
 set -g status-style bg=default
-set -g window-status-format " #[fg=colour245]#I #[fg=colour250]#W "
-set -g window-status-current-format " #[bg=colour99,fg=white,bold] #I #W #[default] "
+set -g window-status-format " #[fg=colour250]#W "
+set -g window-status-current-format " #[bg=colour99,fg=white,bold] #W #[default] "
 set -g status-left "#[fg=colour99,bold] MikoCode #[fg=colour240]│ "
-set -g status-right "#[fg=colour245]%H:%M "
+set -g status-right "#[fg=colour99,bold]+#[fg=colour240] Ctrl-t #[fg=colour245]%H:%M "
 EOFTMUX
 ok "tmux config written (mouse enabled)"
 
@@ -588,11 +597,37 @@ end, {})
 
 vim.cmd([[cabbrev <expr> diff getcmdtype() ==# ':' && getcmdline() ==# 'diff' ? 'Diff' : 'diff']])
 
-vim.api.nvim_create_user_command("Img", function(opts)
-  local file = opts.args ~= "" and opts.args or vim.fn.expand("%:p")
+local image_exts = {
+  png = true,
+  jpg = true,
+  jpeg = true,
+  gif = true,
+  webp = true,
+  bmp = true,
+  tiff = true,
+  tif = true,
+  ico = true,
+  avif = true,
+  heic = true,
+  heif = true,
+  svg = true,
+}
 
-  if file == "" then print("No image file") return end
-  if vim.fn.executable("chafa") ~= 1 then print("Install chafa for image previews") return end
+local function is_image_file(path)
+  local ext = vim.fn.fnamemodify(path, ":e")
+  if not ext or ext == "" then return false end
+  return image_exts[string.lower(ext)] == true
+end
+
+local function preview_image(file)
+  if file == "" then
+    print("No image file")
+    return
+  end
+  if vim.fn.executable("chafa") ~= 1 then
+    print("Install chafa for image previews")
+    return
+  end
 
   local width = math.floor(vim.o.columns * 0.92)
   local height = math.floor(vim.o.lines * 0.82)
@@ -614,7 +649,28 @@ vim.api.nvim_create_user_command("Img", function(opts)
 
   vim.fn.termopen({ "bash", "-lc", "chafa --symbols=block --colors=full --size=100x40 " .. vim.fn.shellescape(file) })
   vim.cmd.startinsert()
+end
+
+vim.api.nvim_create_user_command("Img", function(opts)
+  local file = opts.args ~= "" and opts.args or vim.fn.expand("%:p")
+  preview_image(file)
 end, { nargs = "?", complete = "file" })
+
+vim.api.nvim_create_autocmd("BufEnter", {
+  callback = function(args)
+    if vim.bo[args.buf].buftype ~= "" then return end
+
+    local file = vim.api.nvim_buf_get_name(args.buf)
+    if file == "" or not is_image_file(file) then return end
+
+    vim.schedule(function()
+      if vim.api.nvim_buf_is_valid(args.buf) then
+        pcall(vim.api.nvim_buf_delete, args.buf, { force = true })
+      end
+      preview_image(file)
+    end)
+  end,
+})
 
 vim.keymap.set("n", "<leader>d", "<cmd>Diff<CR>", { desc = "Diff popup" })
 vim.keymap.set("n", "<leader>D", "<cmd>DiffFile<CR>", { desc = "File diff" })

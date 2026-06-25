@@ -223,10 +223,10 @@ set -g pane-active-border-style fg=colour99
 set -g status on
 set -g status-position bottom
 set -g status-style bg=default
-set -g window-status-format " #[fg=colour250]#W "
-set -g window-status-current-format " #[bg=colour99,fg=white,bold] #W #[default] "
+set -g window-status-format " #[fg=colour250]#W#{?window_end_flag, #[fg=colour99,bold]+,} "
+set -g window-status-current-format " #[bg=colour99,fg=white,bold] #W #[default]#{?window_end_flag,#[fg=colour99,bold]+#[default],} "
 set -g status-left "#[fg=colour99,bold] MikoCode #[fg=colour240]│ "
-set -g status-right "#[fg=colour99,bold]+#[fg=colour240] Ctrl-t #[fg=colour245]%H:%M "
+set -g status-right "#[fg=colour245]%H:%M "
 EOFTMUX
 ok "tmux config written (mouse enabled)"
 
@@ -733,6 +733,9 @@ fi
 
 KILL=0
 NEW=0
+IN_TMUX=0
+
+[[ -n "${TMUX:-}" ]] && IN_TMUX=1
 
 if [[ "${1:-}" == "--kill" ]]; then
   KILL=1
@@ -763,6 +766,11 @@ PROJECT="$(basename "$DIR" | tr '[:space:]' '-' | tr -cd '[:alnum:]_.-' | cut -c
 HASH="$(printf "%s" "$DIR" | cksum | awk '{print $1}')"
 SESSION="${MIKOCODE_SESSION:-mikocode-${PROJECT}-${HASH}}"
 
+WINDOW_MODE=0
+if [[ "$IN_TMUX" == "1" && "$NEW" != "1" ]]; then
+  WINDOW_MODE=1
+fi
+
 [[ "$NEW" == "1" ]] && SESSION="${SESSION}-$(date +%H%M%S)"
 
 EDITOR_CMD="${MIKOCODE_EDITOR:-nvim}"
@@ -772,7 +780,7 @@ START_MODE="${MIKOCODE_START_MODE:-normal}"
 
 [[ "$KILL" == "1" ]] && tmux kill-session -t "$SESSION" 2>/dev/null || true
 
-if tmux has-session -t "$SESSION" 2>/dev/null; then
+if [[ "$WINDOW_MODE" != "1" ]] && tmux has-session -t "$SESSION" 2>/dev/null; then
   if [[ -n "${TMUX:-}" ]]; then
     tmux switch-client -t "$SESSION"
   else
@@ -859,11 +867,28 @@ LAUNCH_AI
 
 chmod +x "$EDITOR_LAUNCH" "$SHELL_LAUNCH" "$AI_LAUNCH"
 
-tmux new-session -d -s "$SESSION" -n "code" -c "$DIR"
+if [[ "$WINDOW_MODE" == "1" ]]; then
+  TARGET_WINDOW="$(tmux display-message -p '#{session_name}:#{window_index}')"
+  LEFT="$(tmux display-message -p '#{pane_id}')"
 
-LEFT="$(tmux list-panes -t "$SESSION:code" -F '#{pane_id}' | head -n1)"
-RIGHT="$(tmux split-window -h -p 30 -P -F "#{pane_id}" -t "$LEFT" -c "$DIR")"
-BOTTOM="$(tmux split-window -v -p 25 -P -F "#{pane_id}" -t "$LEFT" -c "$DIR")"
+  while IFS= read -r pane; do
+    [[ "$pane" == "$LEFT" ]] && continue
+    tmux kill-pane -t "$pane"
+  done < <(tmux list-panes -t "$TARGET_WINDOW" -F '#{pane_id}')
+
+  tmux rename-window -t "$TARGET_WINDOW" "$PROJECT"
+  tmux send-keys -t "$LEFT" C-c
+  tmux send-keys -t "$LEFT" "clear" C-m
+
+  RIGHT="$(tmux split-window -h -p 30 -P -F "#{pane_id}" -t "$LEFT" -c "$DIR")"
+  BOTTOM="$(tmux split-window -v -p 25 -P -F "#{pane_id}" -t "$LEFT" -c "$DIR")"
+else
+  tmux new-session -d -s "$SESSION" -n "$PROJECT" -c "$DIR"
+
+  LEFT="$(tmux list-panes -t "$SESSION:$PROJECT" -F '#{pane_id}' | head -n1)"
+  RIGHT="$(tmux split-window -h -p 30 -P -F "#{pane_id}" -t "$LEFT" -c "$DIR")"
+  BOTTOM="$(tmux split-window -v -p 25 -P -F "#{pane_id}" -t "$LEFT" -c "$DIR")"
+fi
 
 tmux select-pane -t "$LEFT" -T "editor"
 tmux select-pane -t "$BOTTOM" -T "shell"
@@ -879,12 +904,16 @@ case "$FOCUS" in
   *) tmux select-pane -t "$LEFT" ;;
 esac
 
-tmux select-window -t "$SESSION:code"
+if [[ "$WINDOW_MODE" != "1" ]]; then
+  tmux select-window -t "$SESSION:$PROJECT"
+fi
 
-if [[ -n "${TMUX:-}" ]]; then
-  tmux switch-client -t "$SESSION"
-else
-  tmux attach-session -t "$SESSION"
+if [[ "$WINDOW_MODE" != "1" ]]; then
+  if [[ -n "${TMUX:-}" ]]; then
+    tmux switch-client -t "$SESSION"
+  else
+    tmux attach-session -t "$SESSION"
+  fi
 fi
 EOFCMD
 

@@ -57,11 +57,21 @@ mikocode --doctor
 
 ### Behavior
 
-- opens/attaches a per-project tmux session
+- when run inside tmux, it uses the current workspace (window) and builds the 3-pane layout there
+- when run outside tmux, it opens/attaches a per-project tmux session
+- `mikocode --new` always creates a new per-project tmux session
+- workspace/window name is set to the project folder name (for example `harvester`)
 - left pane: Neovim with sidebar open and a file opened when starting from a directory
 - bottom pane: shell
 - right pane: AI command (`opencode` by default)
 - tmux mouse is enabled
+
+### Tmux workspace controls
+
+- `Ctrl-t` opens a new empty workspace (window) in the current session
+- `Ctrl-a c` also opens a new workspace
+- `Ctrl-a x` closes the current workspace (with confirmation)
+- bottom bar shows workspace names (no numeric index), and a purple `+` appears after the last workspace
 
 ## Environment variables
 

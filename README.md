@@ -12,6 +12,7 @@ The installer creates a `mikocode` command in your PATH.
 
 - `install.sh` - guided installer (dependencies, configs, launcher)
 - `bin/mikocode` - the launcher script installed to `~/.local/bin/mikocode`
+- `bin/mikocode-settings` - interactive settings menu installed to `~/.local/bin/mikocode-settings`
 - `config/tmux.conf` - tmux config installed to `~/.tmux.conf`
 - `config/nvim/init.lua` - Neovim config installed to `~/.config/nvim/init.lua`
 - `lib/ui.sh` - shared UI helpers for the installer
@@ -64,6 +65,7 @@ mikocode --new [path]    # force a fresh per-project tmux session
 mikocode --here [path]   # rebuild the layout in the current tmux window
 mikocode --kill [path]   # kill the project's tmux session
 mikocode --list          # list mikocode sessions and their workspaces
+mikocode --settings      # interactive settings menu (Ctrl-a S inside tmux)
 mikocode --update        # git pull the repo and re-run the installer
 mikocode --doctor        # environment diagnostics
 mikocode --version
@@ -94,6 +96,7 @@ tmux prefix is `Ctrl-a`.
 | `Alt-1` … `Alt-9` | jump to workspace 1-9 |
 | `Ctrl-a h/j/k/l` | move between panes |
 | `Ctrl-a \|` / `Ctrl-a -` | split horizontally / vertically |
+| `Ctrl-a S` | settings popup (centered) |
 | `Ctrl-a r` | reload tmux config |
 | `Ctrl-a [` then `v`/`y` | copy mode (vi keys, copies to clipboard) |
 
@@ -109,12 +112,45 @@ The bottom bar shows workspace names (no numeric index), and a purple `+` appear
 
 Note: `Alt-1`…`Alt-9` requires your terminal to send Option/Alt as Meta (iTerm2: Profiles → Keys → Left Option Key → Esc+).
 
+## Settings
+
+Press `Ctrl-a S` inside tmux (or run `mikocode --settings` anywhere) to open a centered
+settings popup. Every change saves and applies immediately. Configurable:
+
+| Setting | Default | Options |
+| --- | --- | --- |
+| Accent theme | `purple` | purple, blue, green, red, orange, pink, teal, custom tmux color |
+| Editor | `nvim` | nvim, vim, hx, micro, emacs, any custom command |
+| AI assistant | `opencode` | opencode, claude, codex, gemini, aider, none, any custom command |
+| Neovim colorscheme | `tokyonight-night` | tokyonight variants, catppuccin variants, gruvbox, kanagawa, custom |
+| Status bar position | `bottom` | bottom, top |
+| Mouse support | `on` | on, off |
+| Focus pane on open | `editor` | editor, shell, ai |
+| Editor start mode | `normal` | normal, diff |
+| AI pane width | `30` | 10-80 (%) |
+| Shell pane height | `25` | 10-80 (%) |
+| Shell pane tips | `on` | on, off |
+
+Settings are stored in `~/.config/mikocode/config` (plain `KEY="value"` lines) and the
+tmux theme is generated into `~/.config/mikocode/theme.tmux.conf`. Accent color and
+status bar changes apply to running sessions right away; layout, editor, and AI changes
+apply to new workspaces.
+
+The menu uses [gum](https://github.com/charmbracelet/gum) when installed (the installer
+installs it) and falls back to plain numbered menus otherwise.
+
 ## Environment variables
 
-- `MIKOCODE_AI` (default: `opencode`)
+Env vars override the settings file per invocation:
+
+- `MIKOCODE_AI` (default: `opencode`, use `none` for a plain shell in the right pane)
 - `MIKOCODE_EDITOR` (default: `nvim`)
+- `MIKOCODE_NVIM_THEME` (default: `tokyonight-night`)
 - `MIKOCODE_FOCUS` (default: `editor`, options: `editor|shell|ai`)
 - `MIKOCODE_START_MODE` (default: `normal`, options: `normal|diff`)
+- `MIKOCODE_AI_WIDTH` (default: `30`, right pane width in %)
+- `MIKOCODE_SHELL_HEIGHT` (default: `25`, bottom pane height in %)
+- `MIKOCODE_TIPS` (default: `on`, keybinding hints in the shell pane)
 - `MIKOCODE_SESSION` (optional explicit tmux session name)
 
 Example:

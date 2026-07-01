@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-MIKOCODE_VERSION="0.2.0"
+MIKOCODE_VERSION="0.3.0"
 
 BASE_PATH="$HOME/.local/bin:$HOME/.bun/bin:$HOME/.npm-global/bin:$HOME/.pnpm/bin:${PNPM_HOME:-}:$HOME/.cargo/bin:$HOME/.local/share/mise/shims:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 export PATH="$BASE_PATH"
 
 STATE_DIR="$HOME/.config/mikocode"
+CONFIG_FILE="$STATE_DIR/config"
 
 usage() {
   cat <<'HELP'
@@ -16,17 +17,51 @@ Usage:
   mikocode --here [path]   rebuild the layout in the current tmux window
   mikocode --kill [path]   kill the project's tmux session
   mikocode --list          list mikocode sessions and their workspaces
+  mikocode --settings      open the interactive settings menu (Ctrl-a S in tmux)
   mikocode --update        pull the mikocode repo and re-run the installer
   mikocode --doctor        print environment diagnostics
   mikocode --version       print version
 
-Env:
-  MIKOCODE_AI="opencode"
+Settings live in ~/.config/mikocode/config (theme, editor, AI tool, layout, ...).
+Env vars with the same names override the config file per invocation:
+  MIKOCODE_AI="opencode"          # AI pane command ("none" for a plain shell)
   MIKOCODE_EDITOR="nvim"
-  MIKOCODE_FOCUS="editor"      # editor | shell | ai
-  MIKOCODE_START_MODE="normal" # diff | normal
-  MIKOCODE_SESSION             # explicit tmux session name
+  MIKOCODE_NVIM_THEME="tokyonight-night"
+  MIKOCODE_FOCUS="editor"         # editor | shell | ai
+  MIKOCODE_START_MODE="normal"    # diff | normal
+  MIKOCODE_AI_WIDTH="30"          # right pane width %
+  MIKOCODE_SHELL_HEIGHT="25"      # bottom pane height %
+  MIKOCODE_TIPS="on"              # keybinding hints in the shell pane
+  MIKOCODE_SESSION                # explicit tmux session name
 HELP
+}
+
+# Read ~/.config/mikocode/config (written by mikocode --settings).
+# Only fills in values not already set in the environment, so env vars win.
+load_config() {
+  [[ -f "$CONFIG_FILE" ]] || return 0
+  local key val
+  while IFS='=' read -r key val; do
+    [[ "$key" =~ ^MIKOCODE_[A-Z_]+$ ]] || continue
+    val="${val#\"}"
+    val="${val%\"}"
+    if [[ -z "${!key:-}" ]]; then
+      export "$key=$val"
+    fi
+  done < "$CONFIG_FILE"
+}
+
+open_settings() {
+  local here
+  here="$(cd "$(dirname "$0")" && pwd)"
+  if [[ -x "$here/mikocode-settings" ]]; then
+    exec "$here/mikocode-settings"
+  fi
+  if command -v mikocode-settings >/dev/null 2>&1; then
+    exec mikocode-settings
+  fi
+  echo "mikocode-settings not found. Re-run install.sh." >&2
+  exit 1
 }
 
 doctor() {
@@ -53,6 +88,12 @@ doctor() {
     echo "nvim config:   ~/.config/nvim/init.lua"
   else
     echo "nvim config:   MISSING (run install.sh)"
+  fi
+  if [[ -f "$CONFIG_FILE" ]]; then
+    echo "settings:      $CONFIG_FILE"
+    sed 's/^/                 /' "$CONFIG_FILE" | grep -v '^\s*#' || true
+  else
+    echo "settings:      defaults (run: mikocode --settings)"
   fi
   if [[ -f "$STATE_DIR/repo" ]]; then
     local repo
@@ -106,8 +147,9 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help) usage; exit 0 ;;
     --version) echo "mikocode $MIKOCODE_VERSION"; exit 0 ;;
-    --doctor) doctor; exit 0 ;;
+    --doctor) load_config; doctor; exit 0 ;;
     --list) list_workspaces; exit 0 ;;
+    --settings|--config) open_settings ;;
     --update) self_update ;;
     --kill) KILL=1 ;;
     --new) NEW=1 ;;
@@ -179,10 +221,23 @@ if [[ "$MODE" == "session" ]] && tmux has-session -t "$SESSION" 2>/dev/null; the
   exit 0
 fi
 
+load_config
+
 EDITOR_CMD="${MIKOCODE_EDITOR:-nvim}"
 AI_CMD="${MIKOCODE_AI:-opencode}"
 FOCUS="${MIKOCODE_FOCUS:-editor}"
 START_MODE="${MIKOCODE_START_MODE:-normal}"
+NVIM_THEME="${MIKOCODE_NVIM_THEME:-tokyonight-night}"
+TIPS="${MIKOCODE_TIPS:-on}"
+
+AI_WIDTH="${MIKOCODE_AI_WIDTH:-30}"
+if ! [[ "$AI_WIDTH" =~ ^[0-9]+$ ]] || ((AI_WIDTH < 10 || AI_WIDTH > 80)); then
+  AI_WIDTH=30
+fi
+SHELL_HEIGHT="${MIKOCODE_SHELL_HEIGHT:-25}"
+if ! [[ "$SHELL_HEIGHT" =~ ^[0-9]+$ ]] || ((SHELL_HEIGHT < 10 || SHELL_HEIGHT > 80)); then
+  SHELL_HEIGHT=25
+fi
 
 RUNTIME_DIR="${TMPDIR:-/tmp}/mikocode-${SESSION}"
 mkdir -p "$RUNTIME_DIR"
@@ -192,6 +247,8 @@ OPEN_TARGET_Q="$(printf '%q' "$OPEN_TARGET")"
 BASE_PATH_Q="$(printf '%q' "$BASE_PATH")"
 START_MODE_Q="$(printf '%q' "$START_MODE")"
 AI_CMD_Q="$(printf '%q' "$AI_CMD")"
+NVIM_THEME_Q="$(printf '%q' "$NVIM_THEME")"
+TIPS_Q="$(printf '%q' "$TIPS")"
 
 EDITOR_LAUNCH="$RUNTIME_DIR/editor.sh"
 SHELL_LAUNCH="$RUNTIME_DIR/shell.sh"
@@ -202,7 +259,7 @@ cat > "$EDITOR_LAUNCH" <<LAUNCH_EDITOR
 set -euo pipefail
 export PATH=$BASE_PATH_Q
 cd $DIR_Q
-exec env MIKOCODE_START_MODE=$START_MODE_Q $EDITOR_CMD $OPEN_TARGET_Q
+exec env MIKOCODE_START_MODE=$START_MODE_Q MIKOCODE_NVIM_THEME=$NVIM_THEME_Q $EDITOR_CMD $OPEN_TARGET_Q
 LAUNCH_EDITOR
 
 cat > "$SHELL_LAUNCH" <<LAUNCH_SHELL
@@ -214,9 +271,11 @@ clear
 echo 'MikoCode shell'
 echo 'Project: $DIR'
 echo
-echo 'nvim: Space+e sidebar | Space+d diff | Space+cv code/git view'
-echo 'tmux: Ctrl-a h/j/k/l panes | Ctrl-a r reload'
-echo
+if [[ $TIPS_Q == on ]]; then
+  echo 'nvim: Space+e sidebar | Space+d diff | Space+cv code/git view'
+  echo 'tmux: Ctrl-a h/j/k/l panes | Ctrl-a S settings | Ctrl-a r reload'
+  echo
+fi
 exec zsh -l
 LAUNCH_SHELL
 
@@ -232,6 +291,10 @@ export PATH="\$HOME/.local/bin:\$HOME/.bun/bin:\$HOME/.npm-global/bin:\$HOME/.pn
 
 cmd="\${MIKOCODE_AI:-opencode}"
 bin="\${cmd%% *}"
+
+if [[ "\$cmd" == "none" ]]; then
+  exec zsh -l
+fi
 
 echo "MikoCode AI pane"
 echo "Project: \$PWD"
@@ -275,19 +338,19 @@ if [[ "$MODE" == "here" ]]; then
   tmux send-keys -t "$LEFT" C-c
   tmux send-keys -t "$LEFT" "clear" C-m
 
-  RIGHT="$(tmux split-window -h -l '30%' -P -F "#{pane_id}" -t "$LEFT" -c "$DIR")"
-  BOTTOM="$(tmux split-window -v -l '25%' -P -F "#{pane_id}" -t "$LEFT" -c "$DIR")"
+  RIGHT="$(tmux split-window -h -l "${AI_WIDTH}%" -P -F "#{pane_id}" -t "$LEFT" -c "$DIR")"
+  BOTTOM="$(tmux split-window -v -l "${SHELL_HEIGHT}%" -P -F "#{pane_id}" -t "$LEFT" -c "$DIR")"
 elif [[ "$MODE" == "tab" ]]; then
   TARGET_WINDOW="$(tmux new-window -n "$PROJECT" -c "$DIR" -P -F '#{session_name}:#{window_index}')"
   LEFT="$(tmux list-panes -t "$TARGET_WINDOW" -F '#{pane_id}' | head -n1)"
-  RIGHT="$(tmux split-window -h -l '30%' -P -F "#{pane_id}" -t "$LEFT" -c "$DIR")"
-  BOTTOM="$(tmux split-window -v -l '25%' -P -F "#{pane_id}" -t "$LEFT" -c "$DIR")"
+  RIGHT="$(tmux split-window -h -l "${AI_WIDTH}%" -P -F "#{pane_id}" -t "$LEFT" -c "$DIR")"
+  BOTTOM="$(tmux split-window -v -l "${SHELL_HEIGHT}%" -P -F "#{pane_id}" -t "$LEFT" -c "$DIR")"
 else
   tmux new-session -d -s "$SESSION" -n "$PROJECT" -c "$DIR"
 
   LEFT="$(tmux list-panes -t "$SESSION:$PROJECT" -F '#{pane_id}' | head -n1)"
-  RIGHT="$(tmux split-window -h -l '30%' -P -F "#{pane_id}" -t "$LEFT" -c "$DIR")"
-  BOTTOM="$(tmux split-window -v -l '25%' -P -F "#{pane_id}" -t "$LEFT" -c "$DIR")"
+  RIGHT="$(tmux split-window -h -l "${AI_WIDTH}%" -P -F "#{pane_id}" -t "$LEFT" -c "$DIR")"
+  BOTTOM="$(tmux split-window -v -l "${SHELL_HEIGHT}%" -P -F "#{pane_id}" -t "$LEFT" -c "$DIR")"
 fi
 
 tmux select-pane -t "$LEFT" -T "editor"

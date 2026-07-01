@@ -15,8 +15,9 @@ UI_LIB="$SCRIPT_DIR/lib/ui.sh"
 TMUX_CONF="$SCRIPT_DIR/config/tmux.conf"
 NVIM_INIT="$SCRIPT_DIR/config/nvim/init.lua"
 MIKOCODE_BIN="$SCRIPT_DIR/bin/mikocode"
+MIKOCODE_SETTINGS_BIN="$SCRIPT_DIR/bin/mikocode-settings"
 
-for f in "$UI_LIB" "$TMUX_CONF" "$NVIM_INIT" "$MIKOCODE_BIN"; do
+for f in "$UI_LIB" "$TMUX_CONF" "$NVIM_INIT" "$MIKOCODE_BIN" "$MIKOCODE_SETTINGS_BIN"; do
   if [[ ! -f "$f" ]]; then
     echo "Missing section file: $f" >&2
     exit 1
@@ -50,8 +51,8 @@ if [[ "$UNINSTALL" == "1" ]]; then
   title "MikoCode uninstall"
   subtitle "Removes the launcher and restores config backups. Homebrew packages are left installed."
 
-  rm -f "$HOME/.local/bin/mikocode"
-  ok "Removed ~/.local/bin/mikocode"
+  rm -f "$HOME/.local/bin/mikocode" "$HOME/.local/bin/mikocode-settings"
+  ok "Removed ~/.local/bin/mikocode and mikocode-settings"
 
   for b in /opt/homebrew/bin/mikocode /usr/local/bin/mikocode; do
     if [[ -L "$b" && "$(readlink "$b")" == "$HOME/.local/bin/mikocode" ]]; then
@@ -190,11 +191,12 @@ fi
 
 step "Writing mikocode launcher"
 command cp "$MIKOCODE_BIN" "$HOME/.local/bin/mikocode"
-chmod +x "$HOME/.local/bin/mikocode"
+command cp "$MIKOCODE_SETTINGS_BIN" "$HOME/.local/bin/mikocode-settings"
+chmod +x "$HOME/.local/bin/mikocode" "$HOME/.local/bin/mikocode-settings"
 ln -sf "$HOME/.local/bin/mikocode" "$BREW_PREFIX/bin/mikocode" 2>/dev/null || true
 mkdir -p "$HOME/.config/mikocode"
 printf '%s\n' "$SCRIPT_DIR" > "$HOME/.config/mikocode/repo"
-ok "Launcher installed at ~/.local/bin/mikocode (repo recorded for 'mikocode --update')"
+ok "Launcher + settings installed at ~/.local/bin (repo recorded for 'mikocode --update')"
 
 step "Applying tmux changes"
 tmux set-option -g mouse on 2>/dev/null || true
@@ -207,6 +209,8 @@ printf "\nNext steps:\n"
 printf "  1) source ~/.zshrc\n"
 printf "  2) tmux kill-server\n"
 printf "  3) mikocode .\n"
+printf "\nSettings (theme, editor, AI tool, layout):\n"
+printf "  mikocode --settings   (or Ctrl-a S inside tmux)\n"
 printf "\nDiagnostics:\n"
 printf "  mikocode --doctor\n"
 printf "\nFont tip: set terminal font to MesloLGS NF or Hack Nerd Font.\n"

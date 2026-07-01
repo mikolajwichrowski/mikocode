@@ -40,6 +40,25 @@ local function is_git_repo()
   return vim.fn.system("git rev-parse --is-inside-work-tree 2>/dev/null"):match("true")
 end
 
+-- Settings from `mikocode --settings`: env var first (set by the launcher),
+-- then ~/.config/mikocode/config, then the default.
+local function mikocode_setting(key, default)
+  local env = vim.env["MIKOCODE_" .. key]
+  if env and env ~= "" then return env end
+
+  local path = vim.fn.expand("~/.config/mikocode/config")
+  if vim.fn.filereadable(path) == 1 then
+    for _, line in ipairs(vim.fn.readfile(path)) do
+      local v = line:match('^MIKOCODE_' .. key .. '="?([^"]*)"?%s*$')
+      if v and v ~= "" then return v end
+    end
+  end
+
+  return default
+end
+
+local mikocode_colorscheme = mikocode_setting("NVIM_THEME", "tokyonight-night")
+
 local function set_diff_winbars()
   local wins = vim.api.nvim_tabpage_list_wins(0)
   local diff_wins = {}
@@ -68,14 +87,10 @@ local function set_diff_winbars()
 end
 
 require("lazy").setup({
-  {
-    "folke/tokyonight.nvim",
-    lazy = false,
-    priority = 1000,
-    config = function()
-      vim.cmd.colorscheme("tokyonight-night")
-    end,
-  },
+  { "folke/tokyonight.nvim", lazy = false, priority = 1000 },
+  { "catppuccin/nvim", name = "catppuccin", lazy = false, priority = 1000 },
+  { "ellisonleao/gruvbox.nvim", lazy = false, priority = 1000 },
+  { "rebelot/kanagawa.nvim", lazy = false, priority = 1000 },
 
   { "nvim-tree/nvim-web-devicons" },
   { "nvim-lua/plenary.nvim" },
@@ -164,7 +179,7 @@ require("lazy").setup({
     config = function()
       require("lualine").setup({
         options = {
-          theme = "tokyonight",
+          theme = "auto",
           globalstatus = true,
           section_separators = "",
           component_separators = "",
@@ -254,6 +269,10 @@ require("lazy").setup({
     end,
   },
 })
+
+if not pcall(vim.cmd.colorscheme, mikocode_colorscheme) then
+  vim.cmd.colorscheme("tokyonight-night")
+end
 
 local function popup(lines, title, ft)
   if not lines or #lines == 0 then lines = { "No output." } end

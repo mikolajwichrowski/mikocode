@@ -1,0 +1,314 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+MIKOCODE_VERSION="0.2.0"
+
+BASE_PATH="$HOME/.local/bin:$HOME/.bun/bin:$HOME/.npm-global/bin:$HOME/.pnpm/bin:${PNPM_HOME:-}:$HOME/.cargo/bin:$HOME/.local/share/mise/shims:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+export PATH="$BASE_PATH"
+
+STATE_DIR="$HOME/.config/mikocode"
+
+usage() {
+  cat <<'HELP'
+Usage:
+  mikocode [path]          open project (opens/reuses a tab when inside tmux)
+  mikocode --new [path]    force a fresh per-project tmux session
+  mikocode --here [path]   rebuild the layout in the current tmux window
+  mikocode --kill [path]   kill the project's tmux session
+  mikocode --list          list mikocode sessions and their workspaces
+  mikocode --update        pull the mikocode repo and re-run the installer
+  mikocode --doctor        print environment diagnostics
+  mikocode --version       print version
+
+Env:
+  MIKOCODE_AI="opencode"
+  MIKOCODE_EDITOR="nvim"
+  MIKOCODE_FOCUS="editor"      # editor | shell | ai
+  MIKOCODE_START_MODE="normal" # diff | normal
+  MIKOCODE_SESSION             # explicit tmux session name
+HELP
+}
+
+doctor() {
+  echo "mikocode $MIKOCODE_VERSION"
+  echo
+  echo "PATH:"
+  echo "$PATH"
+  echo
+  echo "tmux:          $(command -v tmux || true) ($(tmux -V 2>/dev/null || echo missing))"
+  echo "nvim:          $(command -v nvim || true) ($(nvim --version 2>/dev/null | head -n1 || echo missing))"
+  echo "opencode bash: $(command -v opencode || true)"
+  echo "opencode zsh:  $(zsh -lic 'command -v opencode' 2>/dev/null || true)"
+  echo "bun:           $(command -v bun || true)"
+  echo "npm:           $(command -v npm || true)"
+  echo "pnpm:          $(command -v pnpm || true)"
+  echo "shell:         ${SHELL:-unknown}"
+  echo
+  if [[ -f "$HOME/.tmux.conf" ]]; then
+    echo "tmux config:   ~/.tmux.conf"
+  else
+    echo "tmux config:   MISSING (run install.sh)"
+  fi
+  if [[ -f "$HOME/.config/nvim/init.lua" ]]; then
+    echo "nvim config:   ~/.config/nvim/init.lua"
+  else
+    echo "nvim config:   MISSING (run install.sh)"
+  fi
+  if [[ -f "$STATE_DIR/repo" ]]; then
+    local repo
+    repo="$(cat "$STATE_DIR/repo")"
+    echo "repo:          $repo"
+    if [[ -f "$repo/bin/mikocode" ]] && ! cmp -s "$repo/bin/mikocode" "$HOME/.local/bin/mikocode"; then
+      echo "launcher:      OUT OF DATE vs repo (run: mikocode --update)"
+    else
+      echo "launcher:      up to date with repo"
+    fi
+  else
+    echo "repo:          unknown (re-run install.sh once to record it)"
+  fi
+}
+
+list_workspaces() {
+  local sessions
+  sessions="$(tmux ls -F '#{session_name}' 2>/dev/null | grep '^mikocode-' || true)"
+  if [[ -z "$sessions" ]]; then
+    echo "No mikocode sessions."
+    return 0
+  fi
+  local s
+  while IFS= read -r s; do
+    echo "$s"
+    tmux list-windows -t "$s" -F '  #{window_index}: #{window_name}'
+  done <<< "$sessions"
+}
+
+self_update() {
+  if [[ ! -f "$STATE_DIR/repo" ]]; then
+    echo "Repo location unknown. Run install.sh from the mikocode repo once." >&2
+    exit 1
+  fi
+  local repo
+  repo="$(cat "$STATE_DIR/repo")"
+  if [[ ! -f "$repo/install.sh" ]]; then
+    echo "Repo not found at recorded location: $repo" >&2
+    exit 1
+  fi
+  git -C "$repo" pull --ff-only 2>/dev/null || echo "git pull skipped (offline or local changes)"
+  exec bash "$repo/install.sh" --yes
+}
+
+KILL=0
+NEW=0
+HERE=0
+TARGET=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    --version) echo "mikocode $MIKOCODE_VERSION"; exit 0 ;;
+    --doctor) doctor; exit 0 ;;
+    --list) list_workspaces; exit 0 ;;
+    --update) self_update ;;
+    --kill) KILL=1 ;;
+    --new) NEW=1 ;;
+    --here) HERE=1 ;;
+    -*) echo "Unknown option: $1" >&2; usage; exit 1 ;;
+    *) TARGET="$1" ;;
+  esac
+  shift
+done
+
+TARGET="${TARGET:-.}"
+IN_TMUX=0
+[[ -n "${TMUX:-}" ]] && IN_TMUX=1
+
+if [[ ! -e "$TARGET" ]]; then
+  echo "Path does not exist: $TARGET" >&2
+  exit 1
+fi
+
+if [[ -d "$TARGET" ]]; then
+  DIR="$(cd "$TARGET" && pwd)"
+  OPEN_TARGET="."
+else
+  DIR="$(cd "$(dirname "$TARGET")" && pwd)"
+  OPEN_TARGET="$(basename "$TARGET")"
+fi
+
+PROJECT="$(basename "$DIR")"
+PROJECT="$(printf '%s' "$PROJECT" | tr '[:space:]' '-' | tr -cd '[:alnum:]_.-' | cut -c1-28)"
+HASH="$(printf "%s" "$DIR" | cksum | awk '{print $1}')"
+SESSION="${MIKOCODE_SESSION:-mikocode-${PROJECT}-${HASH}}"
+
+if [[ "$KILL" == "1" ]]; then
+  if tmux kill-session -t "$SESSION" 2>/dev/null; then
+    echo "Killed session: $SESSION"
+  else
+    echo "No session to kill: $SESSION"
+  fi
+  exit 0
+fi
+
+# Mode: "tab" (default inside tmux), "here" (rebuild current window),
+# "session" (per-project session, default outside tmux or with --new).
+MODE="session"
+if [[ "$IN_TMUX" == "1" && "$NEW" != "1" ]]; then
+  if [[ "$HERE" == "1" ]]; then
+    MODE="here"
+  else
+    MODE="tab"
+  fi
+fi
+
+[[ "$NEW" == "1" ]] && SESSION="${SESSION}-$(date +%H%M%S)"
+
+if [[ "$MODE" == "tab" ]]; then
+  EXISTING="$(tmux list-windows -F '#{window_index}:#{window_name}' | awk -F: -v p="$PROJECT" '$2 == p {print $1; exit}')"
+  if [[ -n "$EXISTING" ]]; then
+    tmux select-window -t ":$EXISTING"
+    exit 0
+  fi
+fi
+
+if [[ "$MODE" == "session" ]] && tmux has-session -t "$SESSION" 2>/dev/null; then
+  if [[ -n "${TMUX:-}" ]]; then
+    tmux switch-client -t "$SESSION"
+  else
+    tmux attach-session -t "$SESSION"
+  fi
+  exit 0
+fi
+
+EDITOR_CMD="${MIKOCODE_EDITOR:-nvim}"
+AI_CMD="${MIKOCODE_AI:-opencode}"
+FOCUS="${MIKOCODE_FOCUS:-editor}"
+START_MODE="${MIKOCODE_START_MODE:-normal}"
+
+RUNTIME_DIR="${TMPDIR:-/tmp}/mikocode-${SESSION}"
+mkdir -p "$RUNTIME_DIR"
+
+DIR_Q="$(printf '%q' "$DIR")"
+OPEN_TARGET_Q="$(printf '%q' "$OPEN_TARGET")"
+BASE_PATH_Q="$(printf '%q' "$BASE_PATH")"
+START_MODE_Q="$(printf '%q' "$START_MODE")"
+AI_CMD_Q="$(printf '%q' "$AI_CMD")"
+
+EDITOR_LAUNCH="$RUNTIME_DIR/editor.sh"
+SHELL_LAUNCH="$RUNTIME_DIR/shell.sh"
+AI_LAUNCH="$RUNTIME_DIR/ai.sh"
+
+cat > "$EDITOR_LAUNCH" <<LAUNCH_EDITOR
+#!/usr/bin/env bash
+set -euo pipefail
+export PATH=$BASE_PATH_Q
+cd $DIR_Q
+exec env MIKOCODE_START_MODE=$START_MODE_Q $EDITOR_CMD $OPEN_TARGET_Q
+LAUNCH_EDITOR
+
+cat > "$SHELL_LAUNCH" <<LAUNCH_SHELL
+#!/usr/bin/env bash
+set -euo pipefail
+export PATH=$BASE_PATH_Q
+cd $DIR_Q
+clear
+echo 'MikoCode shell'
+echo 'Project: $DIR'
+echo
+echo 'nvim: Space+e sidebar | Space+d diff | Space+cv code/git view'
+echo 'tmux: Ctrl-a h/j/k/l panes | Ctrl-a r reload'
+echo
+exec zsh -l
+LAUNCH_SHELL
+
+cat > "$AI_LAUNCH" <<LAUNCH_AI
+#!/usr/bin/env bash
+set -euo pipefail
+export PATH=$BASE_PATH_Q
+export MIKOCODE_AI=$AI_CMD_Q
+cd $DIR_Q
+clear
+exec zsh -lic '
+export PATH="\$HOME/.local/bin:\$HOME/.bun/bin:\$HOME/.npm-global/bin:\$HOME/.pnpm/bin:\${PNPM_HOME:-}:\$HOME/.cargo/bin:\$HOME/.local/share/mise/shims:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:\$PATH"
+
+cmd="\${MIKOCODE_AI:-opencode}"
+bin="\${cmd%% *}"
+
+echo "MikoCode AI pane"
+echo "Project: \$PWD"
+echo "Command: \$cmd"
+echo "Resolved: \$(command -v "\$bin" 2>/dev/null || true)"
+echo
+
+if command -v "\$bin" >/dev/null 2>&1 || [[ -x "\$bin" ]]; then
+  eval "\$cmd"
+  code=\$?
+  echo
+  echo "AI command exited: \$code"
+else
+  echo "opencode was not found from login zsh."
+  echo
+  echo "Debug:"
+  echo "  mikocode --doctor"
+  echo "  zsh -lic '\''command -v opencode; type opencode'\''"
+  echo
+  echo "You can also run:"
+  echo "  MIKOCODE_AI=\"/full/path/to/opencode\" mikocode ."
+fi
+
+echo
+exec zsh -l
+'
+LAUNCH_AI
+
+chmod +x "$EDITOR_LAUNCH" "$SHELL_LAUNCH" "$AI_LAUNCH"
+
+if [[ "$MODE" == "here" ]]; then
+  TARGET_WINDOW="$(tmux display-message -p '#{session_name}:#{window_index}')"
+  LEFT="$(tmux display-message -p '#{pane_id}')"
+
+  while IFS= read -r pane; do
+    [[ "$pane" == "$LEFT" ]] && continue
+    tmux kill-pane -t "$pane"
+  done < <(tmux list-panes -t "$TARGET_WINDOW" -F '#{pane_id}')
+
+  tmux rename-window -t "$TARGET_WINDOW" "$PROJECT"
+  tmux send-keys -t "$LEFT" C-c
+  tmux send-keys -t "$LEFT" "clear" C-m
+
+  RIGHT="$(tmux split-window -h -l '30%' -P -F "#{pane_id}" -t "$LEFT" -c "$DIR")"
+  BOTTOM="$(tmux split-window -v -l '25%' -P -F "#{pane_id}" -t "$LEFT" -c "$DIR")"
+elif [[ "$MODE" == "tab" ]]; then
+  TARGET_WINDOW="$(tmux new-window -n "$PROJECT" -c "$DIR" -P -F '#{session_name}:#{window_index}')"
+  LEFT="$(tmux list-panes -t "$TARGET_WINDOW" -F '#{pane_id}' | head -n1)"
+  RIGHT="$(tmux split-window -h -l '30%' -P -F "#{pane_id}" -t "$LEFT" -c "$DIR")"
+  BOTTOM="$(tmux split-window -v -l '25%' -P -F "#{pane_id}" -t "$LEFT" -c "$DIR")"
+else
+  tmux new-session -d -s "$SESSION" -n "$PROJECT" -c "$DIR"
+
+  LEFT="$(tmux list-panes -t "$SESSION:$PROJECT" -F '#{pane_id}' | head -n1)"
+  RIGHT="$(tmux split-window -h -l '30%' -P -F "#{pane_id}" -t "$LEFT" -c "$DIR")"
+  BOTTOM="$(tmux split-window -v -l '25%' -P -F "#{pane_id}" -t "$LEFT" -c "$DIR")"
+fi
+
+tmux select-pane -t "$LEFT" -T "editor"
+tmux select-pane -t "$BOTTOM" -T "shell"
+tmux select-pane -t "$RIGHT" -T "ai"
+
+tmux send-keys -t "$LEFT" "bash $(printf '%q' "$EDITOR_LAUNCH")" C-m
+tmux send-keys -t "$BOTTOM" "bash $(printf '%q' "$SHELL_LAUNCH")" C-m
+tmux send-keys -t "$RIGHT" "bash $(printf '%q' "$AI_LAUNCH")" C-m
+
+case "$FOCUS" in
+  shell) tmux select-pane -t "$BOTTOM" ;;
+  ai) tmux select-pane -t "$RIGHT" ;;
+  *) tmux select-pane -t "$LEFT" ;;
+esac
+
+if [[ "$MODE" == "session" ]]; then
+  tmux select-window -t "$SESSION:$PROJECT"
+  if [[ -n "${TMUX:-}" ]]; then
+    tmux switch-client -t "$SESSION"
+  else
+    tmux attach-session -t "$SESSION"
+  fi
+fi

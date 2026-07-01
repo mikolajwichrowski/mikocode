@@ -10,7 +10,11 @@ The installer creates a `mikocode` command in your PATH.
 
 ## What this repo contains
 
-- `install.sh` - installs dependencies and writes all configs/scripts
+- `install.sh` - guided installer (dependencies, configs, launcher)
+- `bin/mikocode` - the launcher script installed to `~/.local/bin/mikocode`
+- `config/tmux.conf` - tmux config installed to `~/.tmux.conf`
+- `config/nvim/init.lua` - Neovim config installed to `~/.config/nvim/init.lua`
+- `lib/ui.sh` - shared UI helpers for the installer
 
 This is intentionally opinionated. It manages your local tmux/nvim setup to match the MikoCode workflow.
 
@@ -21,25 +25,31 @@ This is intentionally opinionated. It manages your local tmux/nvim setup to matc
 
 ## Install
 
-From this repo:
-
 ```bash
-chmod +x install.sh
+git clone https://github.com/mikolajwichrowski/mikocode.git
+cd mikocode
 ./install.sh
 source ~/.zshrc
 tmux kill-server
 mikocode .
 ```
 
+Flags:
+
+- `./install.sh --yes` - non-interactive (skips confirmation prompts)
+- `./install.sh --uninstall` - removes the launcher and restores the newest config backups
+
 ## What install.sh does
 
 - installs tools with Homebrew (`tmux`, `neovim`, `git`, `ripgrep`, `fzf`, etc.)
 - installs Nerd Fonts casks
+- removes `alias cat=` lines from `~/.zshrc`/`~/.bashrc` if present (they break tools that pipe through `cat`; a `.bak` copy is kept)
 - writes `~/.tmux.conf` (backs up existing file first)
 - writes `~/.config/nvim/init.lua` (backs up existing file first)
 - installs Neovim plugins via Lazy
 - writes launcher script to `~/.local/bin/mikocode`
 - symlinks `mikocode` into your Homebrew `bin` when possible
+- records the repo location in `~/.config/mikocode/repo` so `mikocode --update` works
 
 Backups are created with timestamp suffixes like:
 
@@ -49,29 +59,55 @@ Backups are created with timestamp suffixes like:
 ## Usage
 
 ```bash
-mikocode [path]
-mikocode --new [path]
-mikocode --kill [path]
-mikocode --doctor
+mikocode [path]          # open project (opens/reuses a tab when inside tmux)
+mikocode --new [path]    # force a fresh per-project tmux session
+mikocode --here [path]   # rebuild the layout in the current tmux window
+mikocode --kill [path]   # kill the project's tmux session
+mikocode --list          # list mikocode sessions and their workspaces
+mikocode --update        # git pull the repo and re-run the installer
+mikocode --doctor        # environment diagnostics
+mikocode --version
 ```
 
 ### Behavior
 
-- when run inside tmux, it uses the current workspace (window) and builds the 3-pane layout there
-- when run outside tmux, it opens/attaches a per-project tmux session
-- `mikocode --new` always creates a new per-project tmux session
-- workspace/window name is set to the project folder name (for example `harvester`)
-- left pane: Neovim with sidebar open and a file opened when starting from a directory
+- outside tmux, `mikocode <path>` opens (or re-attaches to) a per-project tmux session
+- **inside tmux, `mikocode <path>` opens a new workspace tab** with the 3-pane layout - your current workspace is left untouched
+- if a tab for that project already exists in the session, mikocode just switches to it
+- `mikocode --here` rebuilds the layout in the current window (this replaces the old default; it closes the window's other panes)
+- `mikocode --new` always creates a fresh per-project tmux session
+- workspace/window name is the project folder name (for example `harvester`)
+- left pane: editor with sidebar open and a file opened when starting from a directory
 - bottom pane: shell
 - right pane: AI command (`opencode` by default)
 - tmux mouse is enabled
 
-### Tmux workspace controls
+## Keybindings cheatsheet
 
-- `Ctrl-t` opens a new empty workspace (window) in the current session
-- `Ctrl-a c` also opens a new workspace
-- `Ctrl-a x` closes the current workspace (with confirmation)
-- bottom bar shows workspace names (no numeric index), and a purple `+` appears after the last workspace
+tmux prefix is `Ctrl-a`.
+
+| Keys | Action |
+| --- | --- |
+| `Ctrl-t` | new empty workspace (tab) |
+| `Ctrl-a c` | new workspace |
+| `Ctrl-a x` | close current workspace (with confirmation) |
+| `Alt-1` … `Alt-9` | jump to workspace 1-9 |
+| `Ctrl-a h/j/k/l` | move between panes |
+| `Ctrl-a \|` / `Ctrl-a -` | split horizontally / vertically |
+| `Ctrl-a r` | reload tmux config |
+| `Ctrl-a [` then `v`/`y` | copy mode (vi keys, copies to clipboard) |
+
+Neovim (leader is `Space`):
+
+| Keys | Action |
+| --- | --- |
+| `Space e` | toggle file sidebar |
+| `Space d` | diff view |
+| `Space cv` | switch code/git view |
+
+The bottom bar shows workspace names (no numeric index), and a purple `+` appears after the last workspace.
+
+Note: `Alt-1`…`Alt-9` requires your terminal to send Option/Alt as Meta (iTerm2: Profiles → Keys → Left Option Key → Esc+).
 
 ## Environment variables
 
@@ -86,6 +122,24 @@ Example:
 ```bash
 MIKOCODE_AI="opencode --dangerously-skip-permissions" MIKOCODE_FOCUS=ai mikocode .
 ```
+
+## Updating
+
+The installer copies files, so a plain `git pull` does not change your installed setup. To update:
+
+```bash
+mikocode --update   # git pull + re-run installer non-interactively
+```
+
+`mikocode --doctor` tells you when the installed launcher is out of date vs the repo.
+
+## Uninstall
+
+```bash
+./install.sh --uninstall
+```
+
+Removes the launcher and state dir, and restores your most recent `.tmux.conf` / `init.lua` backups. Homebrew packages are left installed.
 
 ## Notes
 

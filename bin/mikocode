@@ -17,6 +17,10 @@ Usage:
   mikocode --here [path]   rebuild the layout in the current tmux window
   mikocode --kill [path]   kill the project's tmux session
   mikocode --list          list mikocode sessions and their workspaces
+  mikocode --claude [path]   open with Claude Code in the AI pane
+  mikocode --opencode [path] open with opencode in the AI pane
+  mikocode --codex [path]    open with Codex in the AI pane
+  mikocode --ai CMD [path]   open with any command in the AI pane ("none" = shell)
   mikocode --settings      open the interactive settings menu (Ctrl-a S in tmux)
   mikocode --update        pull the mikocode repo and re-run the installer
   mikocode --doctor        print environment diagnostics
@@ -151,6 +155,17 @@ while [[ $# -gt 0 ]]; do
     --list) list_workspaces; exit 0 ;;
     --settings|--config) open_settings ;;
     --update) self_update ;;
+    --claude) export MIKOCODE_AI="claude" ;;
+    --opencode) export MIKOCODE_AI="opencode" ;;
+    --codex) export MIKOCODE_AI="codex" ;;
+    --ai)
+      if [[ $# -lt 2 ]]; then
+        echo "--ai requires a command argument" >&2
+        exit 1
+      fi
+      export MIKOCODE_AI="$2"
+      shift
+      ;;
     --kill) KILL=1 ;;
     --new) NEW=1 ;;
     --here) HERE=1 ;;
@@ -308,14 +323,14 @@ if command -v "\$bin" >/dev/null 2>&1 || [[ -x "\$bin" ]]; then
   echo
   echo "AI command exited: \$code"
 else
-  echo "opencode was not found from login zsh."
+  echo "\$bin was not found from login zsh."
   echo
   echo "Debug:"
   echo "  mikocode --doctor"
-  echo "  zsh -lic '\''command -v opencode; type opencode'\''"
+  echo "  zsh -lic '\''command -v \$bin; type \$bin'\''"
   echo
   echo "You can also run:"
-  echo "  MIKOCODE_AI=\"/full/path/to/opencode\" mikocode ."
+  echo "  MIKOCODE_AI=\"/full/path/to/\$bin\" mikocode ."
 fi
 
 echo

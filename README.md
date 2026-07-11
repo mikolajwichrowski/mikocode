@@ -63,6 +63,10 @@ Backups are created with timestamp suffixes like:
 mikocode [path]          # open project (opens/reuses a tab when inside tmux)
 mikocode --new [path]    # force a fresh per-project tmux session
 mikocode --here [path]   # rebuild the layout in the current tmux window
+mikocode --claude [path]   # open with Claude Code in the AI pane
+mikocode --opencode [path] # open with opencode in the AI pane
+mikocode --codex [path]    # open with Codex in the AI pane
+mikocode --ai CMD [path]   # open with any command in the AI pane ("none" = shell)
 mikocode --kill [path]   # kill the project's tmux session
 mikocode --list          # list mikocode sessions and their workspaces
 mikocode --settings      # interactive settings menu (Ctrl-a S inside tmux)

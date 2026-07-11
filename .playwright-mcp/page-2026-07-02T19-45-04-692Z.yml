@@ -1,0 +1,336 @@
+- generic [active] [ref=e1]:
+  - alert [ref=e25]: Bruiloft · Mikołaj & Daisy
+  - generic [ref=e26]:
+    - banner [ref=e27]:
+      - generic [ref=e28]:
+        - link "Mikołaj & Daisy" [ref=e29] [cursor=pointer]:
+          - /url: /app
+        - navigation [ref=e30]:
+          - link "Planning" [ref=e31] [cursor=pointer]:
+            - /url: /app#planning
+          - link "Wat is wat" [ref=e32] [cursor=pointer]:
+            - /url: /app#games
+          - link "Locaties" [ref=e33] [cursor=pointer]:
+            - /url: /app#locations
+          - link "Dresscode" [ref=e34] [cursor=pointer]:
+            - /url: /app#dresscode
+          - link "Updates" [ref=e35] [cursor=pointer]:
+            - /url: /app/notifications
+          - link "Organisatie" [ref=e36] [cursor=pointer]:
+            - /url: /admin
+        - generic [ref=e37]:
+          - generic [ref=e38]: Organisator
+          - generic [ref=e39]:
+            - button "nl" [pressed] [ref=e40]
+            - button "pl" [ref=e41]
+          - button "Uitloggen" [ref=e43]
+    - generic [ref=e44]:
+      - generic [ref=e45]:
+        - paragraph [ref=e46]: Organisatie
+        - paragraph [ref=e47]: Alles configureerbaar — content, locaties, eten, budget en gasten.
+      - navigation [ref=e48]:
+        - generic [ref=e49]:
+          - link "Budget" [ref=e50] [cursor=pointer]:
+            - /url: /admin
+          - link "Gasten" [ref=e51] [cursor=pointer]:
+            - /url: /admin/guests
+          - link "Planning" [ref=e52] [cursor=pointer]:
+            - /url: /admin/timeline
+          - link "Eten" [ref=e53] [cursor=pointer]:
+            - /url: /admin/food
+          - link "Spellen" [ref=e54] [cursor=pointer]:
+            - /url: /admin/games
+          - link "Locaties" [ref=e55] [cursor=pointer]:
+            - /url: /admin/locations
+          - link "Dresscode" [ref=e56] [cursor=pointer]:
+            - /url: /admin/dress-code
+          - link "Updates" [ref=e57] [cursor=pointer]:
+            - /url: /admin/announcements
+          - link "Foto's" [ref=e58] [cursor=pointer]:
+            - /url: /admin/media
+          - link "Notities" [ref=e59] [cursor=pointer]:
+            - /url: /admin/notes
+          - link "Instellingen" [ref=e60] [cursor=pointer]:
+            - /url: /admin/settings
+      - generic [ref=e62]:
+        - generic [ref=e64]:
+          - paragraph [ref=e65]: Budget
+          - heading "Budgettabel" [level=2] [ref=e66]
+        - generic [ref=e67]:
+          - generic [ref=e68]:
+            - paragraph [ref=e69]: Gasten
+            - paragraph [ref=e70]: "2"
+          - generic [ref=e71]:
+            - paragraph [ref=e72]: Naar Nederland
+            - paragraph [ref=e73]: "0"
+          - generic [ref=e74]:
+            - paragraph [ref=e75]: Naar Polen
+            - paragraph [ref=e76]: "0"
+          - generic [ref=e77]:
+            - paragraph [ref=e78]: Geschat totaal
+            - paragraph [ref=e79]: € 0,00
+            - paragraph [ref=e80]: "Waarvan PLN: PLN 0,00 (€ 0,00)"
+        - generic [ref=e81]:
+          - generic [ref=e82]:
+            - paragraph [ref=e83]: Koers
+            - paragraph [ref=e84]: Alle budgetten worden bovenaan omgerekend naar euro. PLN blijft apart zichtbaar, zodat je ziet hoeveel van het totaal uit Poolse kosten komt.
+          - generic [ref=e85]:
+            - generic [ref=e86]:
+              - text: PLN per EUR
+              - spinbutton "PLN per EUR" [ref=e87]: "4.3"
+            - button "Opslaan" [ref=e88] [cursor=pointer]
+        - generic [ref=e92]:
+          - generic [ref=e94]:
+            - generic [ref=e96]: Kostenpost
+            - generic [ref=e97]: Categorie
+            - generic [ref=e98]: Prijs
+            - generic [ref=e99]: Valuta
+            - generic [ref=e100]: Leverancier
+            - generic [ref=e101]: Status
+            - generic [ref=e102]: Datum
+            - generic [ref=e103]: Notities
+            - generic [ref=e104]: In EUR
+          - generic [ref=e106]:
+            - generic [ref=e107]:
+              - button "Versleep rij 1" [ref=e109]:
+                - img [ref=e110]
+              - generic [ref=e117]:
+                - textbox [ref=e119]: Zaalhuur kasteel Baranów
+                - combobox [ref=e121]:
+                  - option "venue" [selected]
+                  - option "food"
+                  - option "drinks"
+                  - option "transport"
+                  - option "attire"
+                  - option "decor"
+                  - option "music"
+                  - option "photo"
+                  - option "stay"
+                  - option "misc"
+                - spinbutton [ref=e123]: "0"
+                - combobox [ref=e125]:
+                  - option "EUR" [selected]
+                  - option "PLN"
+                - textbox [ref=e127]
+                - combobox [ref=e129]:
+                  - option "idea" [selected]
+                  - option "quoted"
+                  - option "booked"
+                  - option "paid"
+                - textbox [ref=e131]
+                - textbox [ref=e133]: Offerte opvragen
+              - generic [ref=e134]: € 0,00
+              - button "Verwijderen" [ref=e137]:
+                - img [ref=e138]
+            - generic [ref=e140]:
+              - button "Versleep rij 2" [ref=e142]:
+                - img [ref=e143]
+              - generic [ref=e150]:
+                - textbox [ref=e152]: Catering — 2 stations + 5 hapjesrondes
+                - combobox [ref=e154]:
+                  - option "venue" [selected]
+                  - option "food"
+                  - option "drinks"
+                  - option "transport"
+                  - option "attire"
+                  - option "decor"
+                  - option "music"
+                  - option "photo"
+                  - option "stay"
+                  - option "misc"
+                - spinbutton [ref=e156]: "0"
+                - combobox [ref=e158]:
+                  - option "EUR" [selected]
+                  - option "PLN"
+                - textbox [ref=e160]
+                - combobox [ref=e162]:
+                  - option "idea" [selected]
+                  - option "quoted"
+                  - option "booked"
+                  - option "paid"
+                - textbox [ref=e164]
+                - textbox [ref=e166]
+              - generic [ref=e167]: € 0,00
+              - button "Verwijderen" [ref=e170]:
+                - img [ref=e171]
+            - generic [ref=e173]:
+              - button "Versleep rij 3" [ref=e175]:
+                - img [ref=e176]
+              - generic [ref=e183]:
+                - textbox [ref=e185]: Drank / bar
+                - combobox [ref=e187]:
+                  - option "venue"
+                  - option "food"
+                  - option "drinks" [selected]
+                  - option "transport"
+                  - option "attire"
+                  - option "decor"
+                  - option "music"
+                  - option "photo"
+                  - option "stay"
+                  - option "misc"
+                - spinbutton [ref=e189]: "0"
+                - combobox [ref=e191]:
+                  - option "EUR"
+                  - option "PLN" [selected]
+                - textbox [ref=e193]
+                - combobox [ref=e195]:
+                  - option "idea" [selected]
+                  - option "quoted"
+                  - option "booked"
+                  - option "paid"
+                - textbox [ref=e197]
+                - textbox [ref=e199]
+              - generic [ref=e200]: € 0,00
+              - button "Verwijderen" [ref=e203]:
+                - img [ref=e204]
+            - generic [ref=e206]:
+              - button "Versleep rij 4" [ref=e208]:
+                - img [ref=e209]
+              - generic [ref=e216]:
+                - textbox [ref=e218]: Koets 's-Gravenzande → Naaldwijk
+                - combobox [ref=e220]:
+                  - option "venue"
+                  - option "food"
+                  - option "drinks"
+                  - option "transport" [selected]
+                  - option "attire"
+                  - option "decor"
+                  - option "music"
+                  - option "photo"
+                  - option "stay"
+                  - option "misc"
+                - spinbutton [ref=e222]: "0"
+                - combobox [ref=e224]:
+                  - option "EUR" [selected]
+                  - option "PLN"
+                - textbox [ref=e226]
+                - combobox [ref=e228]:
+                  - option "idea" [selected]
+                  - option "quoted"
+                  - option "booked"
+                  - option "paid"
+                - textbox [ref=e230]
+                - textbox [ref=e232]
+              - generic [ref=e233]: € 0,00
+              - button "Verwijderen" [ref=e236]:
+                - img [ref=e237]
+            - generic [ref=e239]:
+              - button "Versleep rij 5" [ref=e241]:
+                - img [ref=e242]
+              - generic [ref=e249]:
+                - textbox [ref=e251]: Bus NL → Polen (gasten)
+                - combobox [ref=e253]:
+                  - option "venue"
+                  - option "food"
+                  - option "drinks"
+                  - option "transport" [selected]
+                  - option "attire"
+                  - option "decor"
+                  - option "music"
+                  - option "photo"
+                  - option "stay"
+                  - option "misc"
+                - spinbutton [ref=e255]: "0"
+                - combobox [ref=e257]:
+                  - option "EUR" [selected]
+                  - option "PLN"
+                - textbox [ref=e259]
+                - combobox [ref=e261]:
+                  - option "idea" [selected]
+                  - option "quoted"
+                  - option "booked"
+                  - option "paid"
+                - textbox [ref=e263]
+                - textbox [ref=e265]: Afhankelijk van aantal — zie RSVP
+              - generic [ref=e266]: € 0,00
+              - button "Verwijderen" [ref=e269]:
+                - img [ref=e270]
+            - generic [ref=e272]:
+              - button "Versleep rij 6" [ref=e274]:
+                - img [ref=e275]
+              - generic [ref=e282]:
+                - textbox [ref=e284]: Fotograaf / video
+                - combobox [ref=e286]:
+                  - option "venue"
+                  - option "food"
+                  - option "drinks"
+                  - option "transport"
+                  - option "attire"
+                  - option "decor"
+                  - option "music"
+                  - option "photo" [selected]
+                  - option "stay"
+                  - option "misc"
+                - spinbutton [ref=e288]: "0"
+                - combobox [ref=e290]:
+                  - option "EUR" [selected]
+                  - option "PLN"
+                - textbox [ref=e292]
+                - combobox [ref=e294]:
+                  - option "idea" [selected]
+                  - option "quoted"
+                  - option "booked"
+                  - option "paid"
+                - textbox [ref=e296]
+                - textbox [ref=e298]
+              - generic [ref=e299]: € 0,00
+              - button "Verwijderen" [ref=e302]:
+                - img [ref=e303]
+            - generic [ref=e305]:
+              - button "Versleep rij 7" [ref=e307]:
+                - img [ref=e308]
+              - generic [ref=e315]:
+                - textbox [ref=e317]: Bruidskleding
+                - combobox [ref=e319]:
+                  - option "venue"
+                  - option "food"
+                  - option "drinks"
+                  - option "transport"
+                  - option "attire" [selected]
+                  - option "decor"
+                  - option "music"
+                  - option "photo"
+                  - option "stay"
+                  - option "misc"
+                - spinbutton [ref=e321]: "0"
+                - combobox [ref=e323]:
+                  - option "EUR" [selected]
+                  - option "PLN"
+                - textbox [ref=e325]
+                - combobox [ref=e327]:
+                  - option "idea" [selected]
+                  - option "quoted"
+                  - option "booked"
+                  - option "paid"
+                - textbox [ref=e329]
+                - textbox [ref=e331]
+              - generic [ref=e332]: € 0,00
+              - button "Verwijderen" [ref=e335]:
+                - img [ref=e336]
+          - generic [ref=e339]:
+            - textbox "Nieuwe kostenpost" [ref=e342]
+            - combobox [ref=e344]:
+              - option "venue"
+              - option "food"
+              - option "drinks"
+              - option "transport"
+              - option "attire"
+              - option "decor"
+              - option "music"
+              - option "photo"
+              - option "stay"
+              - option "misc" [selected]
+            - spinbutton "0" [ref=e346]
+            - combobox [ref=e348]:
+              - option "EUR" [selected]
+              - option "PLN"
+            - textbox "Leverancier" [ref=e350]
+            - combobox [ref=e352]:
+              - option "idea" [selected]
+              - option "quoted"
+              - option "booked"
+              - option "paid"
+            - textbox [ref=e354]
+            - textbox "Notities" [ref=e356]
+            - generic [ref=e357]: nieuw

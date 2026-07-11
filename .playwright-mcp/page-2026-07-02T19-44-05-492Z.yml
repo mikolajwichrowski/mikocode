@@ -1,0 +1,29 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - generic:
+      - img
+    - generic [ref=e3]:
+      - link "Mikołaj & Daisy" [ref=e4] [cursor=pointer]:
+        - /url: /
+      - generic [ref=e5]:
+        - button "nl" [pressed] [ref=e6]
+        - button "pl" [ref=e7]
+    - generic [ref=e10]:
+      - generic [ref=e11]:
+        - paragraph [ref=e12]: Inloggen
+        - heading "Welkom terug" [level=1] [ref=e13]
+        - paragraph [ref=e14]: Log in om de laatste informatie en planning te zien.
+      - generic [ref=e15]:
+        - generic [ref=e16]:
+          - generic [ref=e17]: E-mail
+          - textbox "E-mail" [ref=e18]:
+            - /placeholder: jij@email.nl
+        - generic [ref=e19]:
+          - generic [ref=e20]: Wachtwoord
+          - textbox "Wachtwoord" [ref=e21]
+        - button "Inloggen" [ref=e22] [cursor=pointer]
+        - paragraph [ref=e23]:
+          - text: Nog geen account?
+          - link "Aanmelden met code" [ref=e24] [cursor=pointer]:
+            - /url: /register
+  - alert [ref=e25]
